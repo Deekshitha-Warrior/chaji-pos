@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { X, Printer, Copy, Check } from 'lucide-react'
 import { BarcodeLabel } from './BarcodeLabel'
 import { BRAND_EN } from '../../lib/brand'
-import { getAllLabelSizes } from '../../lib/barcode'
+import { getAllLabelSizes, generateBarcodeSvgString, getStoredBarcodeSettings, saveStoredBarcodeSettings } from '../../lib/barcode'
 
 export interface BarcodePrintModalProps {
   isOpen: boolean
@@ -45,6 +45,15 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
   const [quantity, setQuantity] = useState<string>(String(defaultQuantity || 1))
   const [selectedPreset, setSelectedPreset] = useState<LabelSizePreset>(presets[0] || { name: 'Thermal Standard', widthMm: 50, heightMm: 25 })
   const [copied, setCopied] = useState(false)
+  const [printerType, setPrinterType] = useState<'label' | 'regular'>(() => {
+    return getStoredBarcodeSettings().printerType || 'label'
+  })
+
+  const handlePrinterTypeChange = (type: 'label' | 'regular') => {
+    setPrinterType(type)
+    const current = getStoredBarcodeSettings()
+    saveStoredBarcodeSettings({ ...current, printerType: type })
+  }
 
   // Close on Escape key & lock body scrolling when open
   useEffect(() => {
@@ -88,62 +97,73 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
         return
       }
 
-    const fullTitle = `${productName}${variantName ? ` (${variantName})` : ''}`
+      const fullTitle = `${productName}${variantName ? ` (${variantName})` : ''}`
+      const isThermal = printerType === 'label'
+      const isSmall = selectedPreset.heightMm <= 25
+      const isLarge = selectedPreset.heightMm >= 40
 
-    const isSmall = selectedPreset.heightMm <= 25
-    const isLarge = selectedPreset.heightMm >= 40
+      // Proportional barcode sizing preventing detail overlaps
+      // Barcode bars take ~32% of height, leaving balanced space for text, header, and footer
+      const barcodeHeightPx = Math.max(16, Math.round(selectedPreset.heightMm * 0.32 * 3.7795))
+      const printableWidthPx = Math.max(30, (selectedPreset.widthMm - 4) * 3.7795)
+      const barcodeBarWidth = Math.max(0.80, Math.min(1.70, Math.round((printableWidthPx / 120) * 100) / 100))
+      const barcodeFontSize = Math.max(6, Math.min(9.5, Math.round(selectedPreset.heightMm * 0.20 * 10) / 10))
 
-    // Exact mathematical calculation for thermal barcode size
-    // 1mm = 3.7795px at standard 96 DPI CSS print
-    // Barcode occupies ~50% of the total label sticker height
-    const barcodeHeightPx = Math.max(22, Math.round(selectedPreset.heightMm * 0.50 * 3.7795))
-    const printableWidthPx = Math.max(30, (selectedPreset.widthMm - 3) * 3.7795)
-    const barcodeBarWidth = Math.max(0.80, Math.min(1.85, Math.round((printableWidthPx / 115) * 100) / 100))
+      // Direct SVG generation without CDN script dependencies
+      const svgMarkup = generateBarcodeSvgString(barcodeValue, {
+        width: barcodeBarWidth,
+        height: barcodeHeightPx,
+        fontSize: barcodeFontSize,
+        font: 'Arial, sans-serif',
+        margin: 0,
+        textMargin: 1.5,
+        displayValue: true,
+      })
 
-    const barcodeFontSize = Math.max(6.5, Math.min(11, Math.round(selectedPreset.heightMm * 0.28 * 10) / 10))
-    const headerFontSize = Math.max(6, Math.min(12, Math.round(selectedPreset.heightMm * 0.30 * 10) / 10)) + 'pt'
-    const titleFontSize = Math.max(5.5, Math.min(10, Math.round(selectedPreset.heightMm * 0.25 * 10) / 10)) + 'pt'
-    const tagFontSize = Math.max(5, Math.min(8.5, Math.round(selectedPreset.heightMm * 0.22 * 10) / 10)) + 'pt'
-    const priceFontSize = Math.max(7, Math.min(13.5, Math.round(selectedPreset.heightMm * 0.35 * 10) / 10)) + 'pt'
-    const paddingY = Math.max(0.4, Math.round(selectedPreset.heightMm * 0.03 * 10) / 10) + 'mm'
-    const paddingX = Math.max(0.8, Math.round(selectedPreset.widthMm * 0.03 * 10) / 10) + 'mm'
-    const stickerPadding = `${paddingY} ${paddingX}`
-    const barcodeBoxHeightMm = (selectedPreset.heightMm * 0.50).toFixed(1) + 'mm'
+      const headerFontSize = isSmall ? '7pt' : isLarge ? '10.5pt' : '8.5pt'
+      const titleFontSize = isSmall ? '6pt' : isLarge ? '9pt' : '7.5pt'
+      const tagFontSize = isSmall ? '5.5pt' : isLarge ? '8.5pt' : '7pt'
+      const priceFontSize = isSmall ? '8pt' : isLarge ? '12pt' : '9.5pt'
+      const stickerPadding = isSmall ? '0.6mm 1.2mm' : '1.0mm 1.6mm'
 
     // Build standalone HTML for the printed stickers with strict thermal proportions
     const parsedQty = parseInt(quantity.trim(), 10)
     const validQuantity = !isNaN(parsedQty) && parsedQty > 0 ? parsedQty : 1
-    const stickersHtml = Array.from({ length: Math.max(1, validQuantity) })
-      .map(
-        () => `
-        <div class="sticker">
-          <div class="header">
-            <div class="brand">${BRAND_EN}</div>
-            <div class="prod-title">${fullTitle}</div>
-          </div>
-          <div class="barcode-box">
-            <svg class="barcode-svg" jsbarcode-value="${barcodeValue}"></svg>
-          </div>
-          <div class="footer">
-            <span>${mrp && mrp > price ? `<span class="mrp">MRP ₹${mrp}</span>` : '<span class="retail-tag">CHAJI RETAIL</span>'}</span>
-            <span class="price">₹${price}</span>
-          </div>
+    const singleStickerHtml = `
+      <div class="sticker">
+        <div class="header">
+          <div class="brand">${BRAND_EN}</div>
+          <div class="prod-title">${fullTitle}</div>
         </div>
-      `
-      )
+        <div class="barcode-box">
+          ${svgMarkup}
+        </div>
+        <div class="footer">
+          <span>${mrp && mrp > price ? `<span class="mrp">MRP ₹${mrp}</span>` : '<span class="retail-tag">CHAJI RETAIL</span>'}</span>
+          <span class="price">₹${price}</span>
+        </div>
+      </div>
+    `
+    const allStickersHtml = Array.from({ length: Math.max(1, validQuantity) })
+      .map(() => singleStickerHtml)
       .join('')
+
+    const bodyContent = isThermal
+      ? allStickersHtml
+      : `<div class="a4-container">${allStickersHtml}</div>`
 
     const html = `
       <!DOCTYPE html>
       <html>
         <head>
           <title>Print Barcode - ${barcodeValue}</title>
-          <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
           <style>
             @page {
-              size: ${selectedPreset.widthMm}mm ${selectedPreset.heightMm}mm;
-              margin: 0mm !important;
-              marks: none !important;
+              ${
+                isThermal
+                  ? `size: ${selectedPreset.widthMm}mm ${selectedPreset.heightMm}mm; margin: 0mm !important; marks: none !important;`
+                  : `size: A4 portrait; margin: 10mm !important;`
+              }
             }
             * {
               box-sizing: border-box;
@@ -153,13 +173,16 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
             html, body {
               margin: 0 !important;
               padding: 0 !important;
-              width: ${selectedPreset.widthMm}mm !important;
-              height: ${selectedPreset.heightMm}mm !important;
-              overflow: hidden !important;
               background: #fff !important;
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
               -webkit-print-color-adjust: exact;
               print-color-adjust: exact;
+            }
+            .a4-container {
+              display: flex;
+              flex-wrap: wrap;
+              align-content: flex-start;
+              gap: 3mm 4mm;
             }
             .sticker {
               width: ${selectedPreset.widthMm}mm;
@@ -172,33 +195,32 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
               justify-content: space-between;
               align-items: center;
               text-align: center;
-              page-break-after: always !important;
-              break-after: page !important;
-              page-break-inside: avoid !important;
-              break-inside: avoid !important;
               overflow: hidden;
               box-sizing: border-box;
+              break-inside: avoid !important;
+              page-break-inside: avoid !important;
+              background: #fff;
+              ${!isThermal ? 'border: 0.2mm dashed #bbb;' : ''}
             }
-            .sticker:last-child {
-              page-break-after: auto !important;
-              break-after: auto !important;
+            .sticker + .sticker {
+              ${isThermal ? 'break-before: page !important; page-break-before: always !important;' : ''}
             }
             .header {
               width: 100%;
               display: flex;
               flex-direction: column;
               align-items: center;
-              justify-content: center;
-              line-height: 1;
-              padding-bottom: 0.2mm;
+              justify-content: flex-start;
+              line-height: 1.1;
+              flex-shrink: 0;
             }
             .brand {
               font-size: ${headerFontSize};
               font-weight: 900;
-              letter-spacing: 0.5px;
+              letter-spacing: 0.3px;
               text-transform: uppercase;
               color: #000;
-              line-height: 1;
+              line-height: 1.1;
             }
             .prod-title {
               font-size: ${titleFontSize};
@@ -206,36 +228,38 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
               white-space: nowrap;
               overflow: hidden;
               text-overflow: ellipsis;
-              max-width: 96%;
-              margin-top: 0.2mm;
+              max-width: 98%;
+              margin-top: 0.3mm;
               color: #111;
-              line-height: 1;
+              line-height: 1.1;
             }
             .barcode-box {
               width: 100%;
-              height: ${barcodeBoxHeightMm};
-              max-height: ${barcodeBoxHeightMm};
+              flex: 1;
+              min-height: 0;
               display: flex;
               justify-content: center;
               align-items: center;
-              margin: 0;
+              margin: 0.4mm 0;
               overflow: hidden;
             }
-            .barcode-svg {
+            .barcode-box svg {
               display: block;
               margin: 0 auto;
               max-width: 98%;
               max-height: 100%;
+              width: auto;
+              height: auto;
             }
             .footer {
               width: 100%;
               display: flex;
               justify-content: space-between;
-              align-items: flex-end;
-              border-top: 0.5pt solid #000;
-              padding-top: 0.3mm;
+              align-items: center;
+              border-top: 0.6pt solid #000;
+              padding-top: 0.5mm;
               line-height: 1;
-              margin-top: 0.1mm;
+              flex-shrink: 0;
             }
             .retail-tag {
               font-size: ${tagFontSize};
@@ -256,27 +280,7 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
           </style>
         </head>
         <body data-gramm="false">
-          ${stickersHtml}
-          <script>
-            window.onload = function() {
-              JsBarcode(".barcode-svg").init({
-                format: "CODE128",
-                width: ${barcodeBarWidth},
-                height: ${barcodeHeightPx},
-                fontSize: ${barcodeFontSize},
-                font: "Arial, sans-serif",
-                margin: 0,
-                textMargin: 1,
-                displayValue: true
-              });
-              setTimeout(function() {
-                try {
-                  window.focus();
-                  window.print();
-                } catch (e) {}
-              }, 300);
-            }
-          </script>
+          ${bodyContent}
         </body>
       </html>
     `
@@ -293,15 +297,21 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
       } catch {}
     }
 
-    try {
-      if (iframe.contentWindow) {
-        iframe.contentWindow.onbeforeunload = null
-        iframe.contentWindow.onunload = null
-        iframe.contentWindow.onafterprint = cleanup
+    setTimeout(() => {
+      try {
+        if (iframe.contentWindow) {
+          iframe.contentWindow.onbeforeunload = null
+          iframe.contentWindow.onunload = null
+          iframe.contentWindow.onafterprint = cleanup
+          iframe.contentWindow.focus()
+          iframe.contentWindow.print()
+        }
+      } catch (err) {
+        console.warn('[BarcodePrintModal] Failed to execute print:', err)
+      } finally {
+        setTimeout(cleanup, 2500)
       }
-    } catch {}
-
-    setTimeout(cleanup, 2500)
+    }, 200)
   } catch (err) {
     console.warn('[BarcodePrintModal] Failed to execute print:', err)
   }
@@ -310,7 +320,7 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
   return createPortal(
     <div className="fixed inset-0 top-0 left-0 right-0 bottom-0 w-screen h-screen h-[100dvh] z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-0 sm:p-4 overflow-hidden animate-in fade-in duration-150">
       <div className="absolute inset-0" onClick={onClose} />
-      <div className="relative z-10 bg-white rounded-none sm:rounded-3xl max-w-2xl w-full h-screen h-[100dvh] sm:h-auto sm:max-h-[92vh] border-0 sm:border border-[#E8D399] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-150">
+      <div className="relative z-10 bg-white rounded-none sm:rounded-3xl max-w-2xl sm:max-w-3xl w-full h-screen h-[100dvh] sm:h-auto sm:max-h-[92vh] border-0 sm:border border-[#E8D399] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-150">
         {/* Header */}
         <div className="bg-[#0A0A0A] px-4 py-3 sm:px-6 sm:py-4 border-b border-[#D4AF37]/30 flex items-center justify-between text-white shrink-0">
           <div className="flex items-center gap-3">
@@ -334,22 +344,22 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
           </button>
         </div>
 
-        {/* Body - Scrollable within max-h-[90vh] */}
-        <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto flex-1 min-h-0 hide-scrollbar">
+        {/* Body - Scrollable */}
+        <div className="p-4 sm:p-6 space-y-4 sm:space-y-4 overflow-y-auto flex-1 min-h-0">
           {/* Barcode Info Card */}
-          <div className="bg-[#FBFAF6] border border-[#E8D399] rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="bg-[#FBFAF6] border border-[#E8D399] rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div>
               <span className="text-[10px] font-black uppercase tracking-wider text-[#B48811]">
                 Product / SKU
               </span>
-              <h3 className="text-lg font-black text-[#0A0A0A]">{productName}</h3>
+              <h3 className="text-base sm:text-lg font-black text-[#0A0A0A] leading-tight">{productName}</h3>
               {variantName && (
                 <div className="mt-1 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold">
                   Variant: {variantName}
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-gray-200 shadow-sm">
+            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-gray-200 shadow-sm shrink-0">
               <span className="font-mono text-sm font-black text-black">
                 {barcodeValue}
               </span>
@@ -364,72 +374,139 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
             </div>
           </div>
 
-          {/* Configuration Form */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-black uppercase tracking-wider text-gray-600 mb-1.5">
-                Number of Labels to Print
-              </label>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setQuantity((q) => String(Math.max(1, (parseInt(q, 10) || 1) - 1)))}
-                  className="w-10 h-10 rounded-xl bg-gray-100 hover:bg-gray-200 text-black font-black text-lg flex items-center justify-center border border-gray-300 cursor-pointer"
-                >
-                  -
-                </button>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  placeholder="1"
-                  value={quantity}
-                  onChange={(e) => {
-                    const clean = e.target.value.replace(/[^0-9]/g, '')
-                    setQuantity(clean)
-                  }}
-                  className="flex-1 text-center font-black text-lg py-2 rounded-xl border-2 border-[#E8D399] bg-[#FBFAF6] focus:border-[#0A0A0A] focus:bg-white outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => setQuantity((q) => String((parseInt(q, 10) || 0) + 1))}
-                  className="w-10 h-10 rounded-xl bg-gray-100 hover:bg-gray-200 text-black font-black text-lg flex items-center justify-center border border-gray-300 cursor-pointer"
-                >
-                  +
-                </button>
+          {/* Configuration Form Card */}
+          <div className="bg-[#FBFAF6] border border-[#E8D399]/70 rounded-2xl p-4 space-y-4">
+            {/* Row 1: Target Printer & Preset */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Target Printer Type */}
+              <div>
+                <label className="block text-xs font-black uppercase tracking-wider text-gray-700 mb-1.5">
+                  Target Printer
+                </label>
+                <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-white border border-[#E8D399] shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => handlePrinterTypeChange('label')}
+                    className={`py-2 px-2.5 rounded-lg text-xs font-black transition-all text-center cursor-pointer ${
+                      printerType === 'label'
+                        ? 'bg-[#0A0A0A] text-[#D4AF37] shadow-sm'
+                        : 'text-gray-600 hover:text-black hover:bg-gray-100'
+                    }`}
+                  >
+                    Thermal (Roll)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handlePrinterTypeChange('regular')}
+                    className={`py-2 px-2.5 rounded-lg text-xs font-black transition-all text-center cursor-pointer ${
+                      printerType === 'regular'
+                        ? 'bg-[#0A0A0A] text-[#D4AF37] shadow-sm'
+                        : 'text-gray-600 hover:text-black hover:bg-gray-100'
+                    }`}
+                  >
+                    Desktop (A4)
+                  </button>
+                </div>
+                <p className="text-[11px] text-gray-500 mt-1">
+                  {printerType === 'label'
+                    ? 'Roll label printer (1 label per page)'
+                    : 'A4 sheet printer (Canon G2010, HP, Epson)'}
+                </p>
               </div>
-              <p className="text-[11px] text-gray-500 mt-1">
-                Prints {quantity || 1} physical stickers with identical barcode identifier.
-              </p>
+
+              {/* Label Sizing Preset */}
+              <div>
+                <label className="block text-xs font-black uppercase tracking-wider text-gray-700 mb-1.5">
+                  Label Sizing Preset
+                </label>
+                <select
+                  value={selectedPreset.name}
+                  onChange={(e) => {
+                    const preset = presets.find((p) => p.name === e.target.value)
+                    if (preset) setSelectedPreset(preset)
+                  }}
+                  className="w-full py-2.5 px-3 rounded-xl border-2 border-[#E8D399] bg-white font-bold text-xs sm:text-sm text-gray-900 outline-none focus:border-[#0A0A0A] shadow-sm cursor-pointer"
+                >
+                  {presets.map((p) => (
+                    <option key={p.name} value={p.name}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-gray-500 mt-1">
+                  Dimensions: {selectedPreset.widthMm}mm × {selectedPreset.heightMm}mm
+                </p>
+              </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-black uppercase tracking-wider text-gray-600 mb-1.5">
-                Label Sizing Preset
+            {/* Row 2: Quantity Stepper & Quick Pills */}
+            <div className="pt-3 border-t border-[#E8D399]/50">
+              <label className="block text-xs font-black uppercase tracking-wider text-gray-700 mb-2">
+                Number of Labels to Print
               </label>
-              <select
-                value={selectedPreset.name}
-                onChange={(e) => {
-                  const preset = presets.find((p) => p.name === e.target.value)
-                  if (preset) setSelectedPreset(preset)
-                }}
-                className="w-full py-2.5 px-3 rounded-xl border-2 border-[#E8D399] bg-[#FBFAF6] font-bold text-sm text-gray-900 outline-none focus:border-[#0A0A0A] focus:bg-white cursor-pointer"
-              >
-                {presets.map((p) => (
-                  <option key={p.name} value={p.name}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Stepper with explicit unshrinkable buttons */}
+                <div className="inline-flex items-center rounded-xl border-2 border-[#E8D399] bg-white overflow-hidden shadow-sm shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setQuantity((q) => String(Math.max(1, (parseInt(q, 10) || 1) - 1)))}
+                    className="w-10 h-10 shrink-0 bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-black font-black text-lg flex items-center justify-center transition-colors cursor-pointer select-none"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    placeholder="1"
+                    value={quantity}
+                    onChange={(e) => {
+                      const clean = e.target.value.replace(/[^0-9]/g, '')
+                      setQuantity(clean)
+                    }}
+                    className="w-20 sm:w-24 text-center font-black text-lg py-1.5 bg-white text-black outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setQuantity((q) => String((parseInt(q, 10) || 0) + 1))}
+                    className="w-10 h-10 shrink-0 bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-black font-black text-lg flex items-center justify-center transition-colors cursor-pointer select-none"
+                  >
+                    +
+                  </button>
+                </div>
+
+                {/* Quick Presets */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {[1, 5, 10, 20, 50, 100].map((num) => (
+                    <button
+                      key={num}
+                      type="button"
+                      onClick={() => setQuantity(String(num))}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                        quantity === String(num)
+                          ? 'bg-[#0A0A0A] text-[#D4AF37] shadow-sm'
+                          : 'bg-white hover:bg-gray-100 border border-gray-300 text-gray-700 shadow-sm'
+                      }`}
+                    >
+                      {num}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
 
           {/* Live Preview */}
           <div>
-            <label className="block text-xs font-black uppercase tracking-wider text-gray-600 mb-2">
-              Sticker Print Preview (1 of {quantity})
-            </label>
-            <div className="bg-[#FBFAF6] border-2 border-dashed border-[#E8D399] rounded-2xl p-6 flex items-center justify-center">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-black uppercase tracking-wider text-gray-600">
+                Sticker Print Preview
+              </label>
+              <span className="text-[11px] font-bold text-[#B48811]">
+                {quantity || 1} {quantity === '1' ? 'Label' : 'Labels'} • {selectedPreset.widthMm} × {selectedPreset.heightMm} mm ({printerType === 'label' ? 'Roll' : 'A4 Sheet'})
+              </span>
+            </div>
+            <div className="bg-[#FBFAF6] border-2 border-dashed border-[#E8D399] rounded-2xl py-6 px-4 flex items-center justify-center min-h-[140px]">
               <BarcodeLabel
                 productName={productName}
                 variantName={variantName}

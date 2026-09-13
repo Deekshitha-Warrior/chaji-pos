@@ -28,11 +28,11 @@ export const BarcodeLabel: React.FC<BarcodeLabelProps> = ({
   const isSmall = heightMm <= 25
   const isLarge = heightMm >= 40
 
-  // Dynamic calculation for barcode dimensions and typography
-  const barcodeHeightPx = Math.max(22, Math.round(heightMm * 0.50 * 3.7795))
-  const printableWidthPx = Math.max(30, (widthMm - 3) * 3.7795)
-  const barcodeBarWidth = Math.max(0.80, Math.min(1.85, Math.round((printableWidthPx / 115) * 100) / 100))
-  const barcodeFontSize = Math.max(6.5, Math.min(11, Math.round(heightMm * 0.28 * 10) / 10))
+  // Dynamic calculation for barcode dimensions and typography (balanced proportions to prevent overlapping)
+  const barcodeHeightPx = Math.max(16, Math.round(heightMm * 0.32 * 3.7795))
+  const printableWidthPx = Math.max(30, (widthMm - 4) * 3.7795)
+  const barcodeBarWidth = Math.max(0.80, Math.min(1.70, Math.round((printableWidthPx / 120) * 100) / 100))
+  const barcodeFontSize = Math.max(6, Math.min(9.5, Math.round(heightMm * 0.20 * 10) / 10))
 
   useEffect(() => {
     if (svgRef.current && barcodeValue) {
@@ -42,7 +42,7 @@ export const BarcodeLabel: React.FC<BarcodeLabelProps> = ({
         fontSize: barcodeFontSize,
         font: 'Arial, sans-serif',
         margin: 0,
-        textMargin: 1,
+        textMargin: 1.5,
         displayValue: true,
       })
     }
@@ -58,7 +58,7 @@ export const BarcodeLabel: React.FC<BarcodeLabelProps> = ({
         height: `${heightMm}mm`,
         maxWidth: `${widthMm}mm`,
         maxHeight: `${heightMm}mm`,
-        padding: isSmall ? '0.8mm 1.2mm' : isLarge ? '1.8mm 2.5mm' : '1.2mm 1.8mm',
+        padding: isSmall ? '0.6mm 1.2mm' : isLarge ? '1.5mm 2.2mm' : '1.0mm 1.6mm',
         boxSizing: 'border-box',
         overflow: 'hidden',
         pageBreakInside: 'avoid',
@@ -66,18 +66,18 @@ export const BarcodeLabel: React.FC<BarcodeLabelProps> = ({
       }}
     >
       {/* Brand & Product Header */}
-      <div className="w-full flex flex-col items-center leading-none">
+      <div className="w-full flex flex-col items-center leading-none shrink-0">
         <div
           className="font-black tracking-wider text-[#0A0A0A] uppercase truncate max-w-full"
-          style={{ fontSize: isSmall ? '8px' : isLarge ? '12px' : '9.5px' }}
+          style={{ fontSize: isSmall ? '7.5px' : isLarge ? '11px' : '9px' }}
         >
           {storeName}
         </div>
         <div
           className="font-bold text-gray-900 truncate max-w-full leading-tight"
           style={{
-            fontSize: isSmall ? '7.5px' : isLarge ? '11px' : '8.5px',
-            marginTop: isSmall ? '0.2mm' : '0.5mm',
+            fontSize: isSmall ? '6.5px' : isLarge ? '9.5px' : '8px',
+            marginTop: '0.3mm',
           }}
         >
           {fullTitle}
@@ -87,31 +87,30 @@ export const BarcodeLabel: React.FC<BarcodeLabelProps> = ({
       {/* Barcode Graphic Box */}
       <div
         className="w-full flex-1 flex justify-center items-center overflow-hidden"
-        style={{ margin: isSmall ? '0.2mm 0' : '0.6mm 0', maxHeight: `${heightMm * 0.48}mm` }}
+        style={{ margin: '0.4mm 0', minHeight: 0 }}
       >
-        <svg ref={svgRef} className="max-w-[96%] max-h-full h-auto" />
+        <svg ref={svgRef} className="max-w-[98%] max-h-full h-auto" />
       </div>
 
       {/* Pricing Footer */}
       <div
-        className="w-full flex items-center justify-between px-0.5 border-t border-black leading-none"
+        className="w-full flex items-center justify-between px-0.5 border-t border-black leading-none shrink-0"
         style={{
-          fontSize: isSmall ? '7.5px' : isLarge ? '10.5px' : '8.5px',
-          paddingTop: isSmall ? '0.3mm' : '0.6mm',
+          paddingTop: isSmall ? '0.4mm' : '0.6mm',
         }}
       >
         {mrp && mrp > price ? (
-          <span className="text-gray-500 line-through" style={{ fontSize: isSmall ? '7px' : isLarge ? '9.5px' : '8px' }}>
+          <span className="text-gray-500 line-through" style={{ fontSize: isSmall ? '6px' : isLarge ? '8.5px' : '7.5px' }}>
             MRP {formatCurrency(mrp)}
           </span>
         ) : (
-          <span className="text-gray-600 font-bold" style={{ fontSize: isSmall ? '6.5px' : isLarge ? '9px' : '7.5px' }}>
+          <span className="text-gray-600 font-bold" style={{ fontSize: isSmall ? '6px' : isLarge ? '8.5px' : '7px' }}>
             CHAJI RETAIL
           </span>
         )}
         <span
           className="font-black text-black"
-          style={{ fontSize: isSmall ? '9px' : isLarge ? '13px' : '10.5px' }}
+          style={{ fontSize: isSmall ? '8.5px' : isLarge ? '12px' : '10px' }}
         >
           {formatCurrency(price)}
         </span>

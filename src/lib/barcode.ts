@@ -102,23 +102,25 @@ export interface BarcodeQueueItem {
   selected: boolean
 }
 
+export interface BarcodeRenderOptions {
+  width?: number
+  height?: number
+  displayValue?: boolean
+  fontSize?: number
+  font?: string
+  textMargin?: number
+  margin?: number
+  lineColor?: string
+  background?: string
+}
+
 /**
  * Render a CODE128 barcode directly into an SVG element.
  */
 export function renderBarcodeSvg(
   svgElement: SVGSVGElement,
   value: string,
-  options?: {
-    width?: number
-    height?: number
-    displayValue?: boolean
-    fontSize?: number
-    font?: string
-    textMargin?: number
-    margin?: number
-    lineColor?: string
-    background?: string
-  }
+  options?: BarcodeRenderOptions
 ) {
   if (!svgElement || !value) return
 
@@ -137,6 +139,25 @@ export function renderBarcodeSvg(
     })
   } catch (err) {
     console.error('[renderBarcodeSvg] Failed to generate barcode:', err)
+  }
+}
+
+/**
+ * Generate a standalone SVG string for a CODE128 barcode.
+ * Executes synchronously in the browser without requiring external CDN scripts.
+ */
+export function generateBarcodeSvgString(
+  value: string,
+  options?: BarcodeRenderOptions
+): string {
+  if (typeof document === 'undefined' || !value) return ''
+  try {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+    renderBarcodeSvg(svg, value, options)
+    return svg.outerHTML || new XMLSerializer().serializeToString(svg)
+  } catch (err) {
+    console.error('[generateBarcodeSvgString] Failed to generate barcode SVG string:', err)
+    return ''
   }
 }
 
