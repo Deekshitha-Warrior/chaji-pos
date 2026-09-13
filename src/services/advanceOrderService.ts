@@ -253,7 +253,7 @@ export async function updateAdvanceStatus(orderId: string, status: AdvanceStatus
   const existing = localOrders.find(o => o.id === orderId)
   if (!updatedOrder && existing) {
     const now = new Date().toISOString()
-    const label = status === 'ready_for_delivery' ? 'Tailoring Completed' : status === 'waiting_final_payment' ? 'Customer Contacted' : status === 'cancelled' ? 'Cancelled' : 'Pending Deposit'
+    const label = status === 'ready_for_delivery' ? 'Ready for Delivery' : status === 'waiting_final_payment' ? 'Customer Contacted' : status === 'cancelled' ? 'Cancelled' : 'Pending Deposit'
     updatedOrder = { ...existing, status, remarks: remarks || existing.remarks, updated_at: now }
 
     const timeline = loadLocalTimeline()

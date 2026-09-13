@@ -566,8 +566,9 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
               <h4 className="text-sm font-black text-gray-900">Quick Timeline Updates</h4>
               <div className="mt-2 flex flex-wrap gap-2">
                 {[
-                  ['tailoring_started', 'Tailoring Started'],
-                  ['tailoring_completed', 'Tailoring Completed'],
+                  ['order_confirmed', 'Order Confirmed'],
+                  ['order_packed', 'Order Packed'],
+                  ['ready_for_delivery', 'Ready for Delivery'],
                   ['customer_contacted', 'Customer Contacted'],
                   ['delivered', 'Delivered'],
                 ].map(([type, label]) => (

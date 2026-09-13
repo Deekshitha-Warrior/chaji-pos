@@ -20,7 +20,7 @@ export const galleryImages: GalleryImage[] = [
   {
     id: 2,
     title: 'Herbal Products',
-    description: 'Curated tailoring, jewellery, accessories, and parcel services',
+    description: 'Curated menswear, clothing collections, and accessories',
     image: BASE + 'WhatsApp Image 2026-06-06 at 7.55.33 AM (1).jpeg',
     tags: ['products', 'herbal'],
   },

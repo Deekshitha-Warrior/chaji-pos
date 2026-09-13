@@ -87,7 +87,7 @@ const TESTIMONIALS = [
     name: 'Priya Krishnamurthy',
     location: 'Chennai',
     rating: 5,
-    text: 'Exceptional quality and friendly service. The tailoring and boutique experience was smooth from start to finish.',
+    text: 'Exceptional quality and friendly service. The shopping and clothing experience was smooth from start to finish.',
     initials: 'PK',
     color: '#D4AF37',
   },
