@@ -274,6 +274,72 @@ export const expenseService = {
     return newRecord
   },
 
+  // 3b. Update an Expense
+  async updateExpense(
+    id: string,
+    payload: {
+      expense_date?: string
+      category_id?: number | null
+      category_name?: string
+      amount?: number
+      description?: string
+      payment_mode?: string
+    }
+  ): Promise<ExpenseRecord> {
+    const updatedAt = new Date().toISOString()
+    if (isSupabaseConfigured && remoteExpensesAvailable !== false) {
+      try {
+        const { data, error } = await supabase
+          .from('expenses')
+          .update({
+            ...(payload.expense_date !== undefined && { expense_date: payload.expense_date }),
+            ...(payload.category_id !== undefined && { category_id: payload.category_id }),
+            ...(payload.category_name !== undefined && { category_name: payload.category_name }),
+            ...(payload.amount !== undefined && { amount: payload.amount }),
+            ...(payload.description !== undefined && { description: payload.description }),
+            ...(payload.payment_mode !== undefined && { payment_mode: payload.payment_mode }),
+            updated_at: updatedAt,
+          })
+          .eq('id', id)
+          .select()
+          .single()
+
+        if (!error && data) {
+          remoteExpensesAvailable = true
+          const local = loadLocalExpenses()
+          const updated = local.map((e) => (e.id === id ? (data as ExpenseRecord) : e))
+          saveLocalExpenses(updated)
+          return data as ExpenseRecord
+        }
+        if (error && (error.code === 'PGRST205' || error.message?.includes('not find'))) {
+          remoteExpensesAvailable = false
+        }
+      } catch {
+        remoteExpensesAvailable = false
+      }
+    }
+
+    // Update in local storage
+    const current = loadLocalExpenses()
+    let updatedRecord: ExpenseRecord | null = null
+    const updated = current.map((e) => {
+      if (e.id === id) {
+        updatedRecord = {
+          ...e,
+          ...payload,
+          updated_at: updatedAt,
+        }
+        return updatedRecord
+      }
+      return e
+    })
+    saveLocalExpenses(updated)
+    if (!updatedRecord) {
+      throw new Error('Expense record not found')
+    }
+    return updatedRecord
+  },
+
   // 4. Delete an Expense
   async deleteExpense(id: string): Promise<void> {
     if (isSupabaseConfigured && remoteExpensesAvailable !== false) {
@@ -377,6 +443,47 @@ export const expenseService = {
     const local = loadLocalCategories()
     const filtered = local.filter((c) => c.id !== id)
     saveLocalCategories(filtered)
+  },
+
+  async updateCategory(id: number, name: string): Promise<ExpenseCategory> {
+    const cleanName = name.trim()
+    if (!cleanName) throw new Error('Category name cannot be empty')
+
+    if (isSupabaseConfigured && remoteCategoriesAvailable !== false) {
+      try {
+        const { data, error } = await supabase
+          .from('expense_categories')
+          .update({ name: cleanName, updated_at: new Date().toISOString() })
+          .eq('id', id)
+          .select()
+          .single()
+
+        if (!error && data) {
+          remoteCategoriesAvailable = true
+          const local = loadLocalCategories()
+          const updated = local.map((c) => (c.id === id ? (data as ExpenseCategory) : c))
+          saveLocalCategories(updated)
+          return data as ExpenseCategory
+        }
+        if (error && (error.code === 'PGRST205' || error.message?.includes('not find'))) {
+          remoteCategoriesAvailable = false
+        }
+      } catch {
+        remoteCategoriesAvailable = false
+      }
+    }
+
+    const local = loadLocalCategories()
+    let updatedCat: ExpenseCategory = { id, name: cleanName, is_active: true }
+    const updated = local.map((c) => {
+      if (c.id === id) {
+        updatedCat = { ...c, name: cleanName, updated_at: new Date().toISOString() }
+        return updatedCat
+      }
+      return c
+    })
+    saveLocalCategories(updated)
+    return updatedCat
   },
 }
 

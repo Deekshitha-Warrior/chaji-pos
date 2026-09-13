@@ -167,40 +167,60 @@ export function invoicePdfFile(data: InvoicePdfData): File {
   return new File([createInvoicePdf(data)], `Invoice-${formatInvoiceNo(data.invoiceNo)}.pdf`, { type: 'application/pdf' })
 }
 
-/** Captures the rendered invoice so the downloaded PDF matches the visible view. */
+/** Captures the rendered invoice so the downloaded PDF matches the visible view and anchors footer to the bottom. */
 export async function invoicePdfFileFromElement(
   element: HTMLElement,
   invoiceNo: string,
 ): Promise<File> {
   const formattedNo = formatInvoiceNo(invoiceNo)
   await document.fonts?.ready
-  const canvas = await html2canvas(element, {
-    backgroundColor: '#ffffff',
-    scale: 2,
-    useCORS: true,
-    logging: false,
-    windowWidth: element.scrollWidth,
-    windowHeight: element.scrollHeight,
-  })
 
-  const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
-  const pageWidth = 210
-  const pageHeight = 297
-  const imageHeight = (canvas.height * pageWidth) / canvas.width
-  const image = canvas.toDataURL('image/png')
+  const invoiceRoot = (element.querySelector('#invoice-print-root') as HTMLElement) || element
+  const baseWidth = invoiceRoot.offsetWidth || element.offsetWidth || 680
+  const targetMinHeight = Math.max(960, Math.round(baseWidth * (297 / 210)))
 
-  if (imageHeight <= pageHeight + 10) {
-    doc.addImage(image, 'PNG', 0, 0, pageWidth, Math.min(pageHeight, imageHeight), undefined, 'FAST')
-  } else {
-    let offset = 0
-    let page = 0
-    while (offset < imageHeight) {
-      if (page > 0) doc.addPage()
-      doc.addImage(image, 'PNG', 0, -offset, pageWidth, imageHeight, undefined, 'FAST')
-      offset += pageHeight
-      page += 1
-    }
+  const prevElementMinHeight = element.style.minHeight
+  const prevRootMinHeight = invoiceRoot.style.minHeight
+
+  element.style.minHeight = `${targetMinHeight}px`
+  if (invoiceRoot !== element) {
+    invoiceRoot.style.minHeight = `${targetMinHeight}px`
   }
 
-  return new File([doc.output('blob')], `Invoice-${formattedNo}.pdf`, { type: 'application/pdf' })
+  try {
+    const canvas = await html2canvas(element, {
+      backgroundColor: '#ffffff',
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      windowWidth: element.scrollWidth,
+      windowHeight: Math.max(element.scrollHeight, targetMinHeight),
+    })
+
+    const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
+    const pageWidth = 210
+    const pageHeight = 297
+    const imageHeight = (canvas.height * pageWidth) / canvas.width
+    const image = canvas.toDataURL('image/png')
+
+    if (imageHeight <= pageHeight + 10) {
+      doc.addImage(image, 'PNG', 0, 0, pageWidth, pageHeight, undefined, 'FAST')
+    } else {
+      let offset = 0
+      let page = 0
+      while (offset < imageHeight) {
+        if (page > 0) doc.addPage()
+        doc.addImage(image, 'PNG', 0, -offset, pageWidth, imageHeight, undefined, 'FAST')
+        offset += pageHeight
+        page += 1
+      }
+    }
+
+    return new File([doc.output('blob')], `Invoice-${formattedNo}.pdf`, { type: 'application/pdf' })
+  } finally {
+    element.style.minHeight = prevElementMinHeight
+    if (invoiceRoot !== element) {
+      invoiceRoot.style.minHeight = prevRootMinHeight
+    }
+  }
 }

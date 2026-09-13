@@ -70,9 +70,10 @@ export const Invoice: React.FC<InvoiceProps> = ({
   return (
     <div
       id="invoice-print-root"
-      className="w-full max-w-[680px] mx-auto bg-white text-[#111111] box-border flex flex-col p-4 sm:p-8 print:p-0 print:max-w-full overflow-hidden border border-[#E8D399]/40 shadow-xl rounded-3xl"
+      className="w-full max-w-[680px] mx-auto bg-white text-[#111111] box-border flex flex-col p-4 sm:p-8 print:p-0 print:max-w-full overflow-hidden border border-[#E8D399]/40 shadow-xl rounded-3xl min-h-[960px] print:min-h-[290mm]"
       style={{
         fontFamily: "'Inter', 'Segoe UI', sans-serif",
+        minHeight: '960px',
       }}
     >
       {/* ── HEADER ────────────────────────────────────────────────── */}
@@ -227,10 +228,11 @@ export const Invoice: React.FC<InvoiceProps> = ({
 
       {/* ── FOOTER ───────────────────────────────────────────────── */}
       <div
-        className="invoice-footer"
+        className="invoice-footer mt-auto"
         style={{
-          marginTop: 24,
+          marginTop: 'auto',
           paddingTop: 16,
+          paddingBottom: 4,
           borderTop: '1px dashed #d0d0d0',
           display: 'flex',
           flexDirection: 'column',

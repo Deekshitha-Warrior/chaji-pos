@@ -13,6 +13,7 @@ import {
   Filter,
   ChevronDown,
   SlidersHorizontal,
+  Edit2,
 } from 'lucide-react'
 import {
   expenseService,
@@ -27,6 +28,7 @@ import { ExpenseCategoriesView } from './ExpenseCategoriesView'
 export const ExpensesView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'expenses' | 'categories'>('expenses')
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false)
+  const [editingExpense, setEditingExpense] = useState<ExpenseRecord | null>(null)
 
   // Metrics
   const [metrics, setMetrics] = useState<ExpenseSummaryMetrics>({
@@ -170,9 +172,22 @@ export const ExpensesView: React.FC = () => {
     }
   }
 
-  const handleExpenseSaved = (newExpense: ExpenseRecord) => {
-    setExpenses((prev) => [newExpense, ...prev])
+  const handleExpenseSaved = (savedExpense: ExpenseRecord) => {
+    setExpenses((prev) => {
+      const exists = prev.some((e) => e.id === savedExpense.id)
+      if (exists) {
+        return prev.map((e) => (e.id === savedExpense.id ? savedExpense : e))
+      }
+      return [savedExpense, ...prev]
+    })
+    setIsRecordModalOpen(false)
+    setEditingExpense(null)
     void loadMetrics()
+  }
+
+  const handleEditExpense = (exp: ExpenseRecord) => {
+    setEditingExpense(exp)
+    setIsRecordModalOpen(true)
   }
 
   const formatCurrencyValue = (val: number) => {
@@ -369,7 +384,10 @@ export const ExpensesView: React.FC = () => {
 
                 <button
                   type="button"
-                  onClick={() => setIsRecordModalOpen(true)}
+                  onClick={() => {
+                    setEditingExpense(null)
+                    setIsRecordModalOpen(true)
+                  }}
                   className="h-10 px-3 sm:px-4 rounded-xl bg-[#0A0A0A] border border-[#D4AF37] text-[#D4AF37] text-xs font-bold hover:bg-[#1A1A1A] transition-all shadow-md flex items-center gap-1.5 cursor-pointer shrink-0"
                 >
                   <Plus size={14} />
@@ -530,14 +548,24 @@ export const ExpensesView: React.FC = () => {
                           {formatCurrencyValue(exp.amount)}
                         </td>
                         <td className="px-5 py-3.5 text-right whitespace-nowrap">
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteExpense(exp.id)}
-                            title="Delete record"
-                            className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-rose-50 hover:text-rose-600 text-gray-500 inline-flex items-center justify-center transition-colors cursor-pointer"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleEditExpense(exp)}
+                              title="Edit record"
+                              className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-900 inline-flex items-center justify-center transition-colors cursor-pointer"
+                            >
+                              <Edit2 size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteExpense(exp.id)}
+                              title="Delete record"
+                              className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-rose-50 hover:text-rose-600 text-gray-500 inline-flex items-center justify-center transition-colors cursor-pointer"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -547,12 +575,16 @@ export const ExpensesView: React.FC = () => {
             </div>
           </div>
 
-          {/* Record Expense Modal */}
+          {/* Record / Edit Expense Modal */}
           <RecordExpenseModal
             isOpen={isRecordModalOpen}
-            onClose={() => setIsRecordModalOpen(false)}
+            onClose={() => {
+              setIsRecordModalOpen(false)
+              setEditingExpense(null)
+            }}
             onSuccess={handleExpenseSaved}
             categories={categories}
+            expenseToEdit={editingExpense}
           />
         </div>
       )}
