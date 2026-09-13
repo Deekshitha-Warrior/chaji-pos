@@ -8,6 +8,7 @@ import {
   Tag,
   Boxes,
   ArrowLeft,
+  Edit2,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useProductStore, type Product } from '../../store/store'
@@ -30,7 +31,10 @@ export interface VariantInputRow {
   customBarcode?: string
 }
 
-export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ onStockUpdated }) => {
+export const AddEditProductView: React.FC<{
+  onStockUpdated?: () => void
+  initialProductId?: number | string | null
+}> = ({ onStockUpdated, initialProductId }) => {
   const { products, fetchProducts } = useProductStore()
   const [categories, setCategories] = useState<CategoryRecord[]>([])
   const [search, setSearch] = useState('')
@@ -83,7 +87,19 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
     setMobileView('form')
     setName(p.name || '')
     setNameTa(p.nameTa || p.tamilName || '')
-    setCategoryId(p.categoryId ? Number(p.categoryId) : '')
+
+    // Match category by ID or by category name
+    let matchedCatId: number | '' = ''
+    if (p.categoryId) {
+      matchedCatId = Number(p.categoryId)
+    } else if (p.category && categories.length > 0) {
+      const found = categories.find(
+        (c) => c.name_en.toLowerCase() === p.category.toLowerCase()
+      )
+      if (found) matchedCatId = Number(found.id)
+    }
+    setCategoryId(matchedCatId)
+
     setPrice(String(p.price || ''))
     setPurchasePrice(String(p.purchasePrice || ''))
     setStockQuantity(String(p.stockQuantity ?? p.stock ?? 0))
@@ -114,6 +130,16 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
       setVariantRows([])
     }
   }
+
+  // Auto-select product if initialProductId is provided
+  useEffect(() => {
+    if (initialProductId && products.length > 0) {
+      const target = products.find((p) => String(p.id) === String(initialProductId))
+      if (target) {
+        void startEditProduct(target)
+      }
+    }
+  }, [initialProductId, products, categories])
 
   const handleAddVariantRow = () => {
     const baseP = parseFloat(price) || 0
@@ -658,21 +684,14 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
         <div className={`w-full lg:w-80 xl:w-96 flex-col bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm shrink-0 h-full min-h-0 ${
           mobileView === 'list' ? 'flex' : 'hidden lg:flex'
         }`}>
-          <div className="p-3.5 border-b border-gray-200 bg-[#FAFAFA] flex items-center justify-between shrink-0">
-            <h4 className="text-xs font-bold text-gray-800">
+          <div className="p-3.5 border-b border-gray-200 bg-[#FAFAFA] shrink-0">
+            <h4 className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+              <Package size={14} className="text-[#D4AF37]" />
               Product Catalog ({activeProducts.length})
             </h4>
-            <button
-              type="button"
-              onClick={() => {
-                resetForm()
-                setMobileView('form')
-              }}
-              className="px-3 py-1.5 rounded-xl bg-[#0A0A0A] text-[#D4AF37] border border-[#D4AF37]/50 text-xs font-black flex items-center gap-1.5 hover:bg-[#1A1A1A] transition shadow-xs cursor-pointer"
-              title="Add a new product"
-            >
-              <Plus size={13} /> Add Product
-            </button>
+            <p className="text-[10px] text-gray-500 font-medium mt-0.5">
+              Select any item to view or edit product details
+            </p>
           </div>
 
           <div className="p-3 border-b border-gray-100 bg-[#FBFAF6] shrink-0">
@@ -694,43 +713,76 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                 No products found.
               </div>
             ) : (
-              filteredProducts.map((p) => (
-                <div
-                  key={p.id}
-                  onClick={() => startEditProduct(p)}
-                  className={`group p-3 sm:p-3.5 hover:bg-[#FBFAF6] cursor-pointer flex items-center justify-between gap-2.5 transition-colors ${
-                    selectedProductId === Number(p.id) ? 'bg-[#FFF9E6] border-l-4 border-[#D4AF37]' : ''
-                  }`}
-                >
-                  <div className="flex-1 min-w-0 pr-1">
-                    <div className="font-bold text-xs text-gray-900 truncate" title={p.name}>
-                      {p.name}
+              filteredProducts.map((p) => {
+                const isSelected = selectedProductId !== null && String(selectedProductId) === String(p.id)
+                return (
+                  <div
+                    key={p.id}
+                    onClick={() => void startEditProduct(p)}
+                    className={`group p-3 sm:p-3.5 cursor-pointer flex items-center justify-between gap-2.5 transition-all ${
+                      isSelected
+                        ? 'bg-[#FFF9E6] border-l-4 border-[#D4AF37] ring-1 ring-[#D4AF37]/40 shadow-xs'
+                        : 'hover:bg-[#FBFAF6] border-l-4 border-transparent hover:border-l-gray-300'
+                    }`}
+                  >
+                    <div className="flex-1 min-w-0 pr-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-xs text-gray-900 truncate" title={p.name}>
+                          {p.name}
+                        </span>
+                        {isSelected && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-[#0A0A0A] text-[#D4AF37] shrink-0">
+                            Editing
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-gray-500 font-medium truncate mt-0.5">
+                        {p.category || 'General'} {p.hasVariants ? '• Multi-variant' : ''}
+                      </div>
                     </div>
-                    <div className="text-[10px] text-gray-500 font-medium truncate">
-                      {p.category || 'General'} {p.hasVariants ? '• Multi-variant' : ''}
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <div className="text-right">
+                        <span className="font-black text-xs text-gray-900 tabular-nums">₹{p.price}</span>
+                        <span className="block text-[10px] text-emerald-700 font-bold tabular-nums">
+                          Stock: {p.stockQuantity ?? p.stock ?? 0}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            void startEditProduct(p)
+                          }}
+                          className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-[#0A0A0A] text-[#D4AF37] border-[#D4AF37] shadow-xs'
+                              : 'border-gray-200 bg-white text-gray-600 hover:bg-[#0A0A0A] hover:text-[#D4AF37] hover:border-black'
+                          }`}
+                          title={`Edit "${p.name}"`}
+                          aria-label={`Edit ${p.name}`}
+                        >
+                          <Edit2 size={13} className={isSelected ? 'text-[#D4AF37]' : ''} />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDeleteProduct(Number(p.id), p.name)
+                          }}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all cursor-pointer"
+                          title={`Delete "${p.name}"`}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <div className="text-right">
-                      <span className="font-black text-xs text-gray-900 tabular-nums">₹{p.price}</span>
-                      <span className="block text-[10px] text-emerald-700 font-bold tabular-nums">
-                        Stock: {p.stockQuantity ?? p.stock ?? 0}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleDeleteProduct(Number(p.id), p.name)
-                      }}
-                      className="p-1.5 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-50 md:opacity-0 md:group-hover:opacity-100 transition-all cursor-pointer"
-                      title={`Delete "${p.name}"`}
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                </div>
-              ))
+                )
+              })
             )}
           </div>
         </div>
@@ -754,9 +806,16 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                 <h3 className="text-sm font-bold text-black flex items-center gap-2 truncate">
                   <Package size={16} className="text-[#D4AF37] shrink-0" />
                   <span className="truncate">{selectedProductId ? 'Edit Product & Stock Details' : 'Add New Product to Catalog'}</span>
+                  {selectedProductId && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 shrink-0">
+                      Editing
+                    </span>
+                  )}
                 </h3>
                 <p className="text-[11px] text-gray-500 font-semibold truncate hidden sm:block">
-                  Receive stock, configure pricing &amp; categories (Barcode is optional)
+                  {selectedProductId
+                    ? `Modifying "${name || 'product'}" — update pricing, barcode, threshold or variants`
+                    : 'Receive stock, configure pricing & categories (Barcode is optional)'}
                 </p>
               </div>
             </div>
@@ -764,21 +823,22 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
               <div className="flex items-center gap-2 shrink-0">
                 <button
                   type="button"
-                  onClick={() => handleDeleteProduct(selectedProductId, name)}
-                  className="text-xs font-bold text-red-600 hover:text-red-700 hover:underline flex items-center gap-1 cursor-pointer"
-                  title="Delete this product"
-                >
-                  <Trash2 size={13} /> <span className="hidden sm:inline">Delete Product</span>
-                </button>
-                <button
-                  type="button"
                   onClick={() => {
                     resetForm()
                     setMobileView('form')
                   }}
-                  className="text-xs font-bold text-blue-600 hover:underline cursor-pointer"
+                  className="px-2.5 py-1.5 rounded-xl border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                  title="Exit edit mode and add a new product"
                 >
-                  + New
+                  <Plus size={13} /> <span className="hidden sm:inline">Add New Product</span><span className="sm:hidden">New</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteProduct(selectedProductId, name)}
+                  className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-bold flex items-center gap-1 transition cursor-pointer"
+                  title="Delete this product"
+                >
+                  <Trash2 size={13} /> <span className="hidden sm:inline">Delete</span>
                 </button>
               </div>
             ) : (

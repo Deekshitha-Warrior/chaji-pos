@@ -48,6 +48,7 @@ export const InventoryTable: React.FC = () => {
   const [adjustModalItem, setAdjustModalItem] = useState<InventoryStockItem | null>(null)
   const [historyDrawerItem, setHistoryDrawerItem] = useState<InventoryStockItem | null>(null)
   const [priceModalItem, setPriceModalItem] = useState<InventoryStockItem | null>(null)
+  const [editProductId, setEditProductId] = useState<number | string | null>(null)
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -503,6 +504,19 @@ export const InventoryTable: React.FC = () => {
                                 <Printer size={14} />
                               </button>
 
+                              {/* Edit in Catalog */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditProductId(item.product_id)
+                                  setActiveTab('products')
+                                }}
+                                className="p-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-[#0A0A0A] hover:text-[#D4AF37] hover:border-black transition-colors cursor-pointer shrink-0"
+                                title={`Edit "${item.name}" in Catalog`}
+                              >
+                                <Edit2 size={14} />
+                              </button>
+
                               {/* Delete Product / Variant (Admin Only) */}
                               {role === 'admin' && (
                                 <button
@@ -530,7 +544,10 @@ export const InventoryTable: React.FC = () => {
       {/* TAB 2: ADD / EDIT PRODUCTS VIEW */}
       {activeTab === 'products' && (
         <div className="animate-in fade-in duration-150">
-          <AddEditProductView onStockUpdated={loadData} />
+          <AddEditProductView
+            initialProductId={editProductId}
+            onStockUpdated={loadData}
+          />
         </div>
       )}
 
