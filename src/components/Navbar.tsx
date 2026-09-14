@@ -49,7 +49,7 @@ export default function Navbar() {
               <img src={BRAND_ICON} alt={BRAND_EN} className="w-full h-full object-contain" />
             </div>
             <div className="flex min-w-0 flex-col leading-none">
-              <p className="truncate text-[12px] sm:text-[13px] font-bold leading-tight tracking-tight text-textMain md:text-[15px] font-headline">{BRAND_EN}</p>
+              <p className="break-words text-[12px] sm:text-[13px] font-bold leading-tight tracking-tight text-textMain md:text-[15px] font-headline">{BRAND_EN}</p>
               <p className="hidden text-[9px] font-bold uppercase tracking-[0.15em] text-sageDark md:block">{BRAND_SUBTITLE}</p>
             </div>
           </Link>

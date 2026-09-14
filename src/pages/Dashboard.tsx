@@ -1661,7 +1661,7 @@ export default function Dashboard() {
             </div>
             {!sidebarCollapsed && (
               <div className="flex flex-col min-w-0">
-                <h1 className="text-[15px] font-black text-white truncate tracking-wider">{BRAND_EN}</h1>
+                <h1 className="text-[15px] font-black text-white break-words tracking-wider">{BRAND_EN}</h1>
                 <span className={`text-[8.5px] font-black uppercase tracking-widest px-1.5 py-0.2 rounded w-fit ${role === 'admin' ? 'bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/40' : 'bg-gray-800 text-gray-300 border border-gray-700'}`}>
                   {role === 'admin' ? 'ADMIN' : 'STAFF'}
                 </span>
