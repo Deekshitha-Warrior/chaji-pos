@@ -322,11 +322,16 @@ export default function Dashboard() {
       if (!staffAllowedTabs.includes(tabKey)) return
     }
     if (tabKey === 'inventory') {
+      // Reset silenced state and trigger alarm for inventory/barcode view
       useAlarmStore.getState().resetSilencedState()
       const lowItems = useAlarmStore.getState().lowStockItems
       if (lowItems.length > 0) {
-        useAlarmStore.getState().setLowStockItems(lowItems)
-        alarmSound.startAlert()
+        // Re-trigger the alarm with proper sound
+        alarmSound.stopAlert() // Clear any existing alert first
+        setTimeout(() => {
+          useAlarmStore.getState().setLowStockItems(lowItems)
+          alarmSound.startAlert()
+        }, 100)
       }
     }
     setTab(tabKey)
@@ -346,11 +351,16 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (tab === 'inventory') {
+      // Reset silenced state and trigger alarm when inventory tab becomes active
       useAlarmStore.getState().resetSilencedState()
       const lowItems = useAlarmStore.getState().lowStockItems
       if (lowItems.length > 0) {
-        useAlarmStore.getState().setLowStockItems(lowItems)
-        alarmSound.startAlert()
+        // Small delay to ensure the UI is ready and sound can play
+        const timer = setTimeout(() => {
+          useAlarmStore.getState().setLowStockItems(lowItems)
+          alarmSound.startAlert()
+        }, 50)
+        return () => clearTimeout(timer)
       }
     }
   }, [tab])

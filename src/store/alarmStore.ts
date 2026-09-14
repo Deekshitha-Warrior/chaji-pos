@@ -26,7 +26,7 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
   silencedItemIds: new Set<string | number>(),
 
   setLowStockItems: (items) => {
-    const { silencedItemIds } = get()
+    const { silencedItemIds, lowStockItems: previousItems } = get()
     
     // Alarm triggers only if there is at least one low-stock item that has not been acknowledged
     const hasUnsilencedLowStock = items.some(
@@ -34,8 +34,17 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
     )
 
     if (items.length > 0 && hasUnsilencedLowStock) {
+      // Check if alarm was already active - if not, make sure to start it
+      const wasAlarmActive = get().isAlarmActive
+      
+      // Always start/restart the alert to ensure sound plays
       alarmSound.startAlert()
       set({ lowStockItems: items, isAlarmActive: true })
+      
+      // If alarm wasn't active before, this is a new alert - log it for debugging
+      if (!wasAlarmActive) {
+        console.log('[Low Stock Alert] New low stock items detected:', items.length)
+      }
     } else {
       // If no items or all items are acknowledged/silenced, ensure alert is stopped
       alarmSound.stopAlert()

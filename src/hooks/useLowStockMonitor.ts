@@ -128,4 +128,12 @@ export function useLowStockMonitor(enabled: boolean = true, role?: string | null
       void supabase.removeChannel(realtimeChannel)
     }
   }, [enabled, role])
+
+  // Re-check stock levels when enabled changes from false to true (e.g., on login)
+  useEffect(() => {
+    if (enabled && !isCheckingRef.current) {
+      isCheckingRef.current = false
+      void checkStockLevels(true)
+    }
+  }, [enabled])
 }
