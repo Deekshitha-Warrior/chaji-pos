@@ -1370,7 +1370,7 @@ export default function Dashboard() {
         category: prodForm.category.trim(), category_id: prodForm.categoryId || null,
         remedy: prodForm.remedy, price: toNumber(prodForm.price, 0),
         offer_price: prodForm.offerPrice === '' ? null : toNumber(prodForm.offerPrice, 0),
-        purchase_price: prodForm.purchasePrice === '' ? null : toNumber(prodForm.purchasePrice, 0),
+        cost_price: prodForm.purchasePrice === '' ? null : toNumber(prodForm.purchasePrice, 0),
         mrp: prodForm.mrp === '' ? null : toNumber(prodForm.mrp, 0),
         sku: prodForm.sku || null,
         barcode: prodForm.barcode || null,

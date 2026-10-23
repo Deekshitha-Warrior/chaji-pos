@@ -13,8 +13,9 @@ interface Props {
 
 export const QuickPriceModal: React.FC<Props> = ({ isOpen, item, onClose, onSuccess }) => {
   const [sellingPrice, setSellingPrice] = useState<string>(item ? String(item.price ?? '') : '')
+  const initialCost = item ? (item.cost_price !== undefined ? item.cost_price : item.purchase_price) : undefined
   const [costPrice, setCostPrice] = useState<string>(
-    item && item.purchase_price !== undefined ? String(item.purchase_price) : ''
+    initialCost !== undefined ? String(initialCost) : ''
   )
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -23,7 +24,8 @@ export const QuickPriceModal: React.FC<Props> = ({ isOpen, item, onClose, onSucc
   useEffect(() => {
     if (item) {
       setSellingPrice(String(item.price ?? ''))
-      setCostPrice(item.purchase_price !== undefined ? String(item.purchase_price) : '')
+      const effCost = item.cost_price !== undefined ? item.cost_price : item.purchase_price
+      setCostPrice(effCost !== undefined ? String(effCost) : '')
       setError('')
     }
   }, [item])
@@ -169,7 +171,7 @@ export const QuickPriceModal: React.FC<Props> = ({ isOpen, item, onClose, onSucc
 
           <div>
             <label className="block font-bold text-[#374151] mb-1.5">
-              Purchase / Cost Price (₹) <span className="text-gray-400 font-normal">(Optional)</span>
+              Cost Price (₹) <span className="text-gray-400 font-normal">(Optional)</span>
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500 font-bold">

@@ -107,7 +107,7 @@ export const InventoryAnalyticsView: React.FC = () => {
       ]
 
       const rows = items.map((it: InventoryStockItem) => {
-        const costPrice = it.purchase_price ?? 0
+        const costPrice = it.cost_price ?? it.purchase_price ?? 0
         const sellingPrice = it.price ?? 0
         const stock = it.stock ?? 0
         const valCost = Math.round(costPrice * stock * 100) / 100

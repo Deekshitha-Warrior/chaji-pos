@@ -59,6 +59,7 @@ export interface Product {
   barcode?: string
   brand?: string
   purchasePrice?: number
+  costPrice?: number
   mrp?: number
   gstPercent?: number
   openingStock?: number
@@ -256,11 +257,12 @@ const mapDbProduct = (input: unknown, categoriesById: Record<string, string> = {
     sku: readString(p.sku),
     barcode: readString(p.barcode),
     brand: readString(p.brand),
-    purchasePrice: toNumber(p.purchase_price, 0),
+    purchasePrice: p.cost_price != null ? toNumber(p.cost_price, 0) : (p.purchase_price != null ? toNumber(p.purchase_price, 0) : 0),
+    costPrice: p.cost_price != null ? toNumber(p.cost_price, 0) : (p.purchase_price != null ? toNumber(p.purchase_price, 0) : 0),
     mrp: toNumber(p.mrp, 0),
     gstPercent: toNumber(p.gst_percent, 0),
     openingStock: toNumber(p.opening_stock, 0),
-    lowStockAlert: toNumber(p.low_stock_alert, 5),
+    lowStockAlert: p.low_stock_alert != null ? toNumber(p.low_stock_alert, 5) : 5,
     supplier: readString(p.supplier),
     size: readString(p.size),
     color: readString(p.color),

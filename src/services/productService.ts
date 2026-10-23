@@ -6,7 +6,8 @@ import { supabase } from '../lib/supabase'
  */
 const PRODUCT_COLUMNS = [
   'id', 'name', 'name_ta', 'tamil_name', 'category', 'category_id',
-  'remedy', 'price', 'offer_price', 'unit_type', 'unit_label',
+  'remedy', 'price', 'offer_price', 'cost_price',
+  'low_stock_alert', 'unit_type', 'unit_label',
   'base_quantity', 'stock_quantity', 'stock_unit', 'allow_decimal_quantity',
   'predefined_options', 'is_active', 'sort_order', 'unit', 'rating',
   'description', 'description_ta', 'benefits', 'benefits_ta',
@@ -40,7 +41,7 @@ export async function updateItemPrice(params: {
       updated_at: new Date().toISOString(),
     }
     if (params.newCostPrice !== undefined && params.newCostPrice >= 0) {
-      updatePayload.purchase_price = params.newCostPrice
+      updatePayload.cost_price = params.newCostPrice
     }
     const { error } = await supabase
       .from('product_variants')
@@ -53,7 +54,7 @@ export async function updateItemPrice(params: {
       updated_at: new Date().toISOString(),
     }
     if (params.newCostPrice !== undefined && params.newCostPrice >= 0) {
-      updatePayload.purchase_price = params.newCostPrice
+      updatePayload.cost_price = params.newCostPrice
     }
     const { error } = await supabase
       .from('products')

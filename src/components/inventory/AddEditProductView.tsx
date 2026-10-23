@@ -48,7 +48,7 @@ export const AddEditProductView: React.FC<{
   const [nameTa, setNameTa] = useState('')
   const [categoryId, setCategoryId] = useState<number | ''>('')
   const [price, setPrice] = useState<string>('')
-  const [purchasePrice, setPurchasePrice] = useState<string>('')
+  const [costPrice, setCostPrice] = useState<string>('')
   const [stockQuantity, setStockQuantity] = useState<string>('0')
   const [lowStockAlert, setLowStockAlert] = useState<string>('5')
   const [barcode, setBarcode] = useState<string>('')
@@ -72,7 +72,7 @@ export const AddEditProductView: React.FC<{
     setNameTa('')
     setCategoryId('')
     setPrice('')
-    setPurchasePrice('')
+    setCostPrice('')
     setStockQuantity('0')
     setLowStockAlert('5')
     setBarcode('')
@@ -100,10 +100,35 @@ export const AddEditProductView: React.FC<{
     }
     setCategoryId(matchedCatId)
 
-    setPrice(String(p.price || ''))
-    setPurchasePrice(String(p.purchasePrice || ''))
+    setPrice(p.price !== undefined && p.price !== null ? String(p.price) : '')
+
+    // Determine initial cost & threshold from store Product
+    let loadedCost: number | null | undefined = p.costPrice ?? p.purchasePrice
+    let loadedThreshold: number | undefined = p.lowStockAlert
+
+    // Also fetch fresh database row to guarantee latest DB cost_price and low_stock_alert
+    try {
+      const { data: dbRow } = await supabase
+        .from('products')
+        .select('cost_price, low_stock_alert')
+        .eq('id', p.id)
+        .maybeSingle()
+
+      if (dbRow) {
+        if (dbRow.cost_price != null) {
+          loadedCost = Number(dbRow.cost_price)
+        }
+        if (dbRow.low_stock_alert != null) {
+          loadedThreshold = Number(dbRow.low_stock_alert)
+        }
+      }
+    } catch (err) {
+      console.warn('Could not fetch latest product fields:', err)
+    }
+
+    setCostPrice(loadedCost !== undefined && loadedCost !== null ? String(loadedCost) : '')
     setStockQuantity(String(p.stockQuantity ?? p.stock ?? 0))
-    setLowStockAlert(p.lowStockAlert ? String(p.lowStockAlert) : '5')
+    setLowStockAlert(loadedThreshold !== undefined && loadedThreshold !== null ? String(loadedThreshold) : '5')
     setBarcode(p.barcode || '')
     setDescription(p.description || '')
     setHasVariants(Boolean(p.hasVariants))
@@ -118,7 +143,7 @@ export const AddEditProductView: React.FC<{
             variantName: v.variantName,
             sizeLabel: v.sizeLabel || v.variantName,
             price: v.price,
-            costPrice: v.purchasePrice || 0,
+            costPrice: v.costPrice != null ? v.costPrice : (v.purchasePrice != null ? v.purchasePrice : 0),
             stock: v.stock || 0,
             customBarcode: v.barcode || '',
           }))
@@ -143,7 +168,7 @@ export const AddEditProductView: React.FC<{
 
   const handleAddVariantRow = () => {
     const baseP = parseFloat(price) || 0
-    const baseC = parseFloat(purchasePrice) || 0
+    const baseC = parseFloat(costPrice) || 0
     setVariantRows((prev) => [
       ...prev,
       {
@@ -180,7 +205,7 @@ export const AddEditProductView: React.FC<{
       return
     }
     const baseP = parseFloat(price) || 0
-    const baseC = parseFloat(purchasePrice) || 0
+    const baseC = parseFloat(costPrice) || 0
 
     // If there is already a blank row with no size and 0 stock, fill that row instead of adding a new one!
     const blankRowIndex = variantRows.findIndex((r) => !r.variantName.trim() && !r.stock)
@@ -224,7 +249,7 @@ export const AddEditProductView: React.FC<{
         ? ['28', '30', '32', '34', '36', '38']
         : ['Free Size', 'One Size', 'Semi-Stitched', 'Unstitched']
     const baseP = parseFloat(price) || 0
-    const baseC = parseFloat(purchasePrice) || 0
+    const baseC = parseFloat(costPrice) || 0
     setVariantRows((prev) => {
       // Remove any unedited blank row when adding a full pack
       const cleaned = prev.filter((r) => r.variantName.trim() !== '' || r.stock > 0)
@@ -280,7 +305,20 @@ export const AddEditProductView: React.FC<{
     const validVariants = variantRows.filter((v) => v.variantName.trim() !== '')
     const firstVariant = validVariants[0]
     const priceNum = hasVariants && firstVariant ? (Number(firstVariant.price) || 0) : (parseFloat(price) || 0)
-    const costNum = hasVariants && firstVariant ? (Number(firstVariant.costPrice) || 0) : (parseFloat(purchasePrice) || 0)
+    
+    // Parse costNum: allow null (if not specified), or non-negative number
+    let costNum: number | null = null
+    if (hasVariants && firstVariant) {
+      const firstVarCost = Number(firstVariant.costPrice)
+      if (!isNaN(firstVarCost) && firstVarCost >= 0) {
+        costNum = firstVarCost
+      }
+    } else if (costPrice.trim() !== '') {
+      const parsedCost = parseFloat(costPrice)
+      if (!isNaN(parsedCost) && parsedCost >= 0) {
+        costNum = parsedCost
+      }
+    }
 
     if (!hasVariants && priceNum <= 0) {
       setStatusMessage({ type: 'error', text: 'Price must be greater than 0' })
@@ -294,7 +332,10 @@ export const AddEditProductView: React.FC<{
 
     const selectedCat = categories.find((c) => Number(c.id) === Number(categoryId))
     const categoryName = selectedCat ? selectedCat.name_en : 'General'
-    const alertThreshold = Number(lowStockAlert) > 0 ? Number(lowStockAlert) : 5
+
+    // Parse low stock alert: supports 0 or positive number, defaults to 5 if blank or invalid
+    const parsedAlert = parseFloat(lowStockAlert)
+    const alertThreshold = !isNaN(parsedAlert) && parsedAlert >= 0 ? parsedAlert : 5
 
     setLoading(true)
 
@@ -323,7 +364,7 @@ export const AddEditProductView: React.FC<{
               category_id: categoryId ? Number(categoryId) : 1,
               price: priceNum,
               offer_price: priceNum,
-              purchase_price: costNum,
+              cost_price: costNum,
               low_stock_alert: alertThreshold,
               barcode: barcode.trim() || null,
               description: description.trim() || '',
@@ -385,7 +426,7 @@ export const AddEditProductView: React.FC<{
                   variant_name: v.variantName.trim(),
                   size_label: v.sizeLabel?.trim() || v.variantName.trim(),
                   price: vPrice,
-                  purchase_price: vCost,
+                  cost_price: vCost,
                   stock: vStock,
                   barcode: v.customBarcode?.trim() || null,
                   is_active: true,
@@ -424,7 +465,7 @@ export const AddEditProductView: React.FC<{
                   variant_name: v.variantName.trim(),
                   size_label: v.sizeLabel?.trim() || v.variantName.trim(),
                   price: vPrice,
-                  purchase_price: vCost,
+                  cost_price: vCost,
                   stock: vStock,
                   barcode: v.customBarcode?.trim() || null,
                 })
@@ -457,7 +498,7 @@ export const AddEditProductView: React.FC<{
               category_id: categoryId ? Number(categoryId) : 1,
               price: priceNum,
               offer_price: priceNum,
-              purchase_price: costNum,
+              cost_price: costNum,
               low_stock_alert: alertThreshold,
               barcode: null,
               description: description.trim() || '',
@@ -486,7 +527,7 @@ export const AddEditProductView: React.FC<{
               category_id: categoryId ? Number(categoryId) : 1,
               price: priceNum,
               offer_price: priceNum,
-              purchase_price: costNum,
+              cost_price: costNum,
               low_stock_alert: alertThreshold,
               barcode: barcode.trim() || null,
               description: description.trim() || '',
@@ -550,7 +591,7 @@ export const AddEditProductView: React.FC<{
               category_id: categoryId ? Number(categoryId) : 1,
               price: priceNum,
               offer_price: priceNum,
-              purchase_price: costNum,
+              cost_price: costNum,
               low_stock_alert: alertThreshold,
               barcode: null,
               description: description.trim() || '',
@@ -577,7 +618,7 @@ export const AddEditProductView: React.FC<{
                 variant_name: v.variantName.trim(),
                 size_label: v.sizeLabel?.trim() || v.variantName.trim(),
                 price: vPrice,
-                purchase_price: vCost,
+                cost_price: vCost,
                 stock: vStock,
                 barcode: v.customBarcode?.trim() || null,
                 is_active: true,
@@ -969,15 +1010,15 @@ export const AddEditProductView: React.FC<{
 
                 <div>
                   <label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center">
-                    Purchase / Cost Price (₹)
+                    Cost Price (₹) <span className="text-gray-400 font-normal ml-1">(Optional)</span>
                   </label>
                   <input
                     type="number"
                     min="0"
                     step="0.01"
                     placeholder="0.00"
-                    value={purchasePrice}
-                    onChange={(e) => setPurchasePrice(e.target.value)}
+                    value={costPrice}
+                    onChange={(e) => setCostPrice(e.target.value)}
                     className="w-full h-10 px-3.5 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]"
                   />
                 </div>
